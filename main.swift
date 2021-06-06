@@ -1,11 +1,13 @@
 import Foundation
 
+
+// ====================================  MODELS  =======================================
+
 enum Priority: Int {
     case high = 1, medium, low
 }
 
 class TaskBoard {
-    static var taskId: Int = 0
     static var tasks: [Task] = []
 
     private init() {}
@@ -29,6 +31,7 @@ class TaskBoard {
 }
 
 class Task {
+    private static var autoIncreamentId: Int = 0
     var id: Int
     var creationDate: Int
     var title: String
@@ -57,8 +60,8 @@ class Task {
     }
 
     init(creationDate: Int, title: String, content: String, priority: Priority) {
-        self.id = TaskBoard.taskId
-        TaskBoard.taskId += 1
+        self.id = Task.autoIncreamentId
+        Task.autoIncreamentId += 1
         self.creationDate = creationDate
         self.title = title
         self.content = content
@@ -66,6 +69,8 @@ class Task {
         TaskBoard.addTask(task: self)
     }
 }
+
+// ====================================  CLI HELPER  =======================================
 
 class Color {
     static var black = "\u{001B}[0;30m"
@@ -89,93 +94,188 @@ class Color {
     private init() {}
 }
 
+
+
 class GUIHelper {
     private init() {}
-    
-    static func run() {
-        while true {
-            drawMenu()
-        }
-    }
 
-    static func drawMenu() {
+    static func drawMenu(name: String, options: [CommandLineOption]) -> Bool {
         Color.changeColor(Color.reset)
-        print("Main Menu:")
-        print("1. Create new task")
-        print("2. Go to tasks board")
-        print("3. Exit")
-        let response = readLine()
-        switch response {
-            case "1":
-                createNewTask()
-            case "2":
-                showTaskBoard()
-            case "3":
-                exit(0)
-            default:
-                Color.changeColor(Color.red)
-                print("\u{274C}Wrong choice!")
+        print("=== \(name) ===")
+        for option in options {
+            print("\(option.key) => \(option.title)")
         }
+
+        let response = readLine()
+        for option in options {
+            if option.key == response {
+                option.run()
+                return true
+            }
+        }
+        Color.changeColor(Color.red)
+        print("\u{274C}Wrong choice!")
+        Color.resetColor()
+        return false
+    }
+    
+    static func printDivider() {
+        print("--------------------")
+    }
+}
+
+class TasksGUI {
+    static func printTasksList(tasksList: [Task]) {
+        print("Tasks List:")
+        Color.changeColor(Color.blue)
+        for (index, task) in tasksList.enumerated() {
+            print(String(index + 1) + ". " + task.title + ": " + task.content)
+        }
+        Color.resetColor()
+
+        GUIHelper.printDivider()
+    }
+}
+
+// ====================================  LOGIC  =======================================
+
+protocol CommandLineOption {
+    var key: String { get }
+    var title: String { get }
+    func run()
+}
+
+
+// .................... Main Menu Options .......................
+
+class CreateTaskOption: CommandLineOption {
+    var key: String {
+        return "+"
+    }
+    var title: String {
+        return "Create new task"
     }
 
-    static func createNewTask() {
-        printDivider()
+    func run() {
+        GUIHelper.printDivider()
         print("Enter Title, Content and Priority of your task in 3 consecutive lines:")
         let title = readLine()
         let content = readLine()
         let priority = readLine()
+        // TODO: Validation for priority
         let _ = Task(creationDate: 1, title: title!, content: content!, priority: Priority(rawValue: Int(priority!)!)!)
         Color.changeColor(Color.green)
         print("\u{2705}Task created Successfully")
-        printDivider()
-    }
-
-    static func printDivider() {
-        print("--------------------")
-    }
-
-    static func showTaskBoard() {
-        Color.changeColor(Color.reset)
-        printDivider()
-        print("1. Show tasks")
-        print("2. Show sorted (name)")
-        print("3. Show sorted (creation date)")
-        print("4. Show sorted (priority)")
-        print("5. Back")
-        let response = readLine()
-        var orederedList = TaskBoard.tasks
-        switch response! {
-            case "1" :
-                break
-            case "2":
-                orederedList = TaskBoard.tasks.sorted(by: {$0.title < $1.title})
-            case "3":
-                orederedList = TaskBoard.tasks.sorted(by: {$0.creationDate < $1.creationDate})
-            case "4": 
-                orederedList = TaskBoard.tasks.sorted(by: {$0.priority.rawValue < $1.priority.rawValue})
-            case "5":
-                return
-            default:
-                Color.changeColor(Color.red)
-                print("\u{274C}Wrong choice!")
-                showTaskBoard()
-        }
-        printList(tasksList: orederedList)
-        printDivider()
-    }
-
-    static func printList(tasksList tasks: [Task]) {
-        print("Tasks List:")
-        Color.changeColor(Color.blue)
-        for (index, task) in tasks.enumerated() {
-            print(String(index + 1) + ". " + task.title + ": " + task.content)
-        }
-        Color.resetColor()
+        GUIHelper.printDivider()
     }
 }
+
+class ShowTaskBoardOption: CommandLineOption {
+    var key: String {
+        return "b"
+    }
+    var title: String {
+        return "Go to tasks board"
+    }
+
+    func run() {
+        let options: [CommandLineOption] = [
+            TaskBoardTasks(key: "1", tasks: TaskBoard.tasks, column: "default", order: false, by: nil),
+            TaskBoardTasks(key: "2", tasks: TaskBoard.tasks, column: "title", order: false, by: {$0.title < $1.title}),
+            TaskBoardTasks(key: "3", tasks: TaskBoard.tasks, column: "creation date", order: false,
+                           by: {$0.creationDate < $1.creationDate}),
+            TaskBoardTasks(key: "4", tasks: TaskBoard.tasks, column: "priority", order: false,
+                           by: {$0.priority.rawValue < $1.priority.rawValue}),
+            TaskBoardBackOption(),
+        ]
+        var finished = true
+        repeat {
+            GUIHelper.printDivider()
+            finished = GUIHelper.drawMenu(name: "Task Borad", options: options)
+        } while finished == false
+    }
+}
+
+class QuitOption: CommandLineOption {
+    var key: String {
+        return "q"
+    }
+    var title: String {
+        return "Quit"
+    }
+
+    func run() {
+        print("Good bye!")
+        exit(0)
+    }
+}
+
+// .................... TaskBoard Options .......................
+
+class TaskBoardTasks: CommandLineOption {
+    var key: String
+    var tasks: [Task]
+    var by: ((Task, Task) -> Bool)?
+    var order: Bool
+    var column: String
+
+    var title: String {
+        return "Show tasks (by: \(column))"
+    }
+
+    func run() {
+        var tasksList = tasks
+        if let notOptionalBy = by {
+            tasksList = tasksList.sorted(by: notOptionalBy)
+        }
+        // TODO: order
+
+        TasksGUI.printTasksList(tasksList)
+    }
+
+    init(key: String, tasks: [Task], column: String, order: Bool, by: ((Task, Task) -> Bool)?) {
+        self.key = key
+        self.tasks = tasks
+        self.by = by
+        self.column = column
+        self.order = order
+    }
+}
+
+class TaskBoardBackOption: CommandLineOption {
+    var key: String {
+        return "b"
+    }
+
+    var title: String {
+        return "Back"
+    }
+
+    func run() {
+        // nothing :)
+    }
+}
+
+
+// ====================================  MAIN  =======================================
+
+class MainGUI {
+    static func run() {
+        let options: [CommandLineOption] = [
+            CreateTaskOption(),
+            ShowTaskBoardOption(),
+            QuitOption()
+        ]
+
+        while true {
+            _ = GUIHelper.drawMenu(name: "Main Menu", options: options)
+        }
+    }
+}
+
 
 let _ = Task(creationDate: 1, title: "d", content: "adafgsd", priority: Priority.high)
 let _ = Task(creationDate: 2, title: "c", content: "adafgsd", priority: Priority.low)
 let _ = Task(creationDate: 3, title: "b", content: "adafgsd", priority: Priority.medium)
 let _ = Task(creationDate: 4, title: "a", content: "adafgsd", priority: Priority.high)
-GUIHelper.run()
+MainGUI.run()
