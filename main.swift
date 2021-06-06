@@ -230,7 +230,7 @@ class TaskBoardTasks: CommandLineOption {
         }
         // TODO: order
 
-        TasksGUI.printTasksList(tasksList)
+        TasksGUI.printTasksList(tasksList: tasksList)
     }
 
     init(key: String, tasks: [Task], column: String, order: Bool, by: ((Task, Task) -> Bool)?) {
