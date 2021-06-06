@@ -9,11 +9,17 @@ enum Priority: Int {
 
 class TaskBoard {
     static var tasks: [Task] = []
+    static var categories: [Category] = []
+    static var taskCategoryAssignments: [TaskCategoryAssingment] = []
 
     private init() {}
 
     static func addTask(task: Task) {
         tasks.append(task)
+    }
+
+    static func addCategory(category: Category) {
+        categories.append(category)
     }
 
     static func removeTask(task: Task) {
@@ -68,6 +74,39 @@ class Task {
         self.priority = priority
         TaskBoard.addTask(task: self)
     }
+}
+
+class Category {
+    private static var autoIncreamentId: Int = 0
+    var id: Int
+    var name: String
+    init(name: String) throws {
+        for category in TaskBoard.categories {
+            if category.name == name {
+                throw CategoryValidationError.uniqueName
+            }
+        }
+        id = Category.autoIncreamentId
+        Category.autoIncreamentId += 1
+        self.name = name
+
+        TaskBoard.addCategory(category: self)
+    }
+}
+
+class TaskCategoryAssingment {
+    var taskId: Int
+    var categoryId: Int
+    init(taskId: Int, categoryId: Int) {
+        self.taskId = taskId
+        self.categoryId = categoryId
+    }
+}
+
+// ==================================== Errors =============================================
+
+enum CategoryValidationError: Error {
+    case uniqueName
 }
 
 // ====================================  CLI HELPER  =======================================
@@ -137,6 +176,39 @@ class TasksGUI {
     }
 }
 
+class CategoriesManagementGUI {
+
+    func menu() {
+        let options: [CommandLineOption] = [
+            CreateCategoryOption(),
+            CategoryListOption(),
+            BackOption(),
+        ]
+
+        var finished = true
+        repeat {
+            GUIHelper.printDivider()
+            finished = GUIHelper.drawMenu(name: "Category Management", options: options)
+        } while finished == false
+    }
+
+    func list() {
+        Color.resetColor()
+        GUIHelper.printDivider()
+        print("== Categories:")
+        if TaskBoard.categories.isEmpty {
+            print("No category found :(")
+        } else {
+            for category in TaskBoard.categories {
+                print("\(category.id): \(category.name)")
+            }
+        }
+        print()
+        print()
+
+    }
+}
+
 // ====================================  LOGIC  =======================================
 
 protocol CommandLineOption {
@@ -186,13 +258,27 @@ class ShowTaskBoardOption: CommandLineOption {
                            by: {$0.creationDate < $1.creationDate}),
             TaskBoardTasks(key: "4", tasks: TaskBoard.tasks, column: "priority", order: false,
                            by: {$0.priority.rawValue < $1.priority.rawValue}),
-            TaskBoardBackOption(),
+            BackOption(),
         ]
         var finished = true
         repeat {
             GUIHelper.printDivider()
             finished = GUIHelper.drawMenu(name: "Task Borad", options: options)
         } while finished == false
+    }
+}
+
+class CategoryManagementOption: CommandLineOption {
+    var key: String {
+        return "c"
+    }
+
+    var title: String {
+        return "Add / Show Categories"
+    }
+
+    func run() {
+        CategoriesManagementGUI().menu()
     }
 }
 
@@ -242,7 +328,7 @@ class TaskBoardTasks: CommandLineOption {
     }
 }
 
-class TaskBoardBackOption: CommandLineOption {
+class BackOption: CommandLineOption {
     var key: String {
         return "b"
     }
@@ -256,6 +342,47 @@ class TaskBoardBackOption: CommandLineOption {
     }
 }
 
+// .................... Category Options .......................
+
+class CategoryListOption: CommandLineOption {
+    var key: String {
+        return "l"
+    }
+    var title: String {
+        return "Show list of categories"
+    }
+
+    func run() {
+        CategoriesManagementGUI().list()
+    }
+}
+class CreateCategoryOption: CommandLineOption {
+    var key: String {
+        return "+"
+    }
+    var title: String {
+        return "Create new category"
+    }
+
+    func run() {
+        GUIHelper.printDivider()
+        print("Enter Title of your category in next line:")
+        do {
+            let title = readLine()
+            let _ = try Category(name: title!)
+
+            Color.changeColor(Color.green)
+            print("\u{2705}Category created Successfully")
+        } catch let catError as CategoryValidationError {
+            Color.changeColor(Color.red)
+            print("\u{274C} Category not created: \(catError)")
+        } catch {
+            print("Unknown error: \(error)")
+        }
+
+        GUIHelper.printDivider()
+    }
+}
 
 // ====================================  MAIN  =======================================
 
@@ -264,6 +391,7 @@ class MainGUI {
         let options: [CommandLineOption] = [
             CreateTaskOption(),
             ShowTaskBoardOption(),
+            CategoryManagementOption(),
             QuitOption()
         ]
 
