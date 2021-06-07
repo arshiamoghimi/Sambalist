@@ -212,7 +212,8 @@ class GUIHelper {
 
 class TasksGUI {
     static func printTasksList(tasksList: [Task]) {
-        print("Tasks List:")
+        GUIHelper.printDivider()
+        print(" === Tasks List ===")
         Color.changeColor(Color.blue)
         if tasksList.isEmpty {
             print("No tasks found with specified filter :( ")
