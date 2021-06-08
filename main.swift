@@ -1,10 +1,28 @@
 import Foundation
 
+// ================================= THIRD PARTIES =====================================
+
+// https://stackoverflow.com/a/7885923
+func getCurrentMillis() -> Int64{
+    return  Int64(NSDate().timeIntervalSince1970 * 1000)
+}
+
 
 // ====================================  MODELS  =======================================
 
-enum Priority: Int {
+enum Priority: Int, CaseIterable {
     case high = 1, medium, low
+
+    func toString() -> String {
+        switch(self) {
+            case Priority.high:
+                return "high"
+            case Priority.medium:
+                return "medium"
+            case Priority.low:
+                return "low"
+        }
+    }
 }
 
 class TaskBoard {
@@ -18,14 +36,8 @@ class TaskBoard {
     }
 
     static func removeTask(task: Task) {
-        var taskIndex = -1
-        for (index, element) in tasks.enumerated() {
-            if task.id == element.id {
-                taskIndex = index
-                break
-            } 
-        }
-        if taskIndex != -1 {
+        let optionalIndex = tasks.firstIndex{ $0.id == task.id }
+        if let taskIndex = optionalIndex {
             tasks.remove(at: taskIndex)
         }
     }
@@ -62,24 +74,12 @@ class TaskBoard {
 class Task {
     private static var autoIncreamentId: Int = 0
     var id: Int
-    var creationDate: Int
+    var creationDate: Int64
     var title: String
     var content: String
     var priority: Priority
     var completed: Bool = false 
     public var categories: [Category] = []
-
-    func editTitle(newTitle: String) {
-        self.title = newTitle
-    }
-
-    func editContent(newContent: String) {
-        self.content = newContent
-    }
-
-    func changePriority(newPriority: Priority) {
-        self.priority = newPriority
-    }
 
     func checkDone() {
         completed = true
@@ -89,10 +89,10 @@ class Task {
         TaskBoard.removeTask(task: self)
     }
 
-    init(creationDate: Int, title: String, content: String, priority: Priority) {
+    init(title: String, content: String, priority: Priority) {
         self.id = Task.autoIncreamentId
         Task.autoIncreamentId += 1
-        self.creationDate = creationDate
+        self.creationDate = getCurrentMillis()
         self.title = title
         self.content = content
         self.priority = priority
@@ -125,8 +125,8 @@ class Category: Equatable {
 
 // ==================================== Errors =============================================
 
-enum CategoryValidationError: Error {
-    case uniqueName
+enum CategoryValidationError: String, Error {
+    case uniqueName = "Category name must be unique"
 }
 
 // ====================================  CLI HELPER  =======================================
@@ -204,6 +204,14 @@ class GUIHelper {
         }
         return nil
     }
+
+    static func drawPrioritySelectBox(label: String, current: Priority? = nil) -> Priority? {
+        var values: [String] = []
+        for priority in Priority.allCases {
+            values.append(priority.toString())
+        }
+        return drawSelectBox(label: label, options: Priority.allCases, values: values, current: current)
+    }
     
     static func printDivider() {
         print("--------------------")
@@ -263,11 +271,18 @@ class CategoriesManagementGUI {
 
 class TaskManagementGUI {
     static func show(task: Task) {
+        print()
+        print()
         GUIHelper.printDivider()
-        print(task.title)
+        print("Task ID: \(task.id)")
+        print("Task Title: \(task.title)")
+        print("Task Priority: \(task.priority.toString())")
+        print("Task Content: \(task.content)")
+        GUIHelper.printDivider()
+        print()
         _ = GUIHelper.drawMenu(name: "Please select one of this actions", options: [
-            // DeleteTask(task), // TODO
-            // UpdateTask(task), // TODO
+            DeleteTaskOption(task: task),
+            UpdateTaskOption(task: task),
             AddCategoryToTaskOption(task: task),
             BackOption(),
         ])
@@ -318,14 +333,22 @@ class CreateTaskOption: CommandLineOption {
     func run() {
         GUIHelper.printDivider()
         print("Enter Title, Content and Priority of your task in 3 consecutive lines:")
+        print("Title?")
         let title = readLine()
+        print("Content?")
         let content = readLine()
-        let priority = readLine()
+        let priority = GUIHelper.drawPrioritySelectBox(label: "Priority?")
         // TODO: Validation for priority
-        let _ = Task(creationDate: 1, title: title!, content: content!, priority: Priority(rawValue: Int(priority!)!)!)
-        Color.changeColor(Color.green)
-        print("\u{2705}Task created Successfully")
-        GUIHelper.printDivider()
+        if title != nil && content != nil && priority != nil {
+            let _ = Task(title: title!, content: content!, priority: priority!)
+            Color.changeColor(Color.green)
+            print("\u{2705}Task created Successfully")
+            GUIHelper.printDivider()
+        } else {
+            Color.changeColor(Color.red)
+            print("\u{274C}Task creation failed :(")
+            GUIHelper.printDivider()
+        }
     }
 }
 
@@ -523,10 +546,10 @@ class DeleteCategoryOption: CommandLineOption {
             let deleted = TaskBoard.removeCategory(name: categoryName)
             if deleted {
                 Color.changeColor(Color.green)
-                print("\u{2705}Category created Successfully")
+                print("\u{2705}Category deleted Successfully")
             } else {
                 Color.changeColor(Color.red)
-                print("\u{274C} Category not created")
+                print("\u{274C} No category found")
             }
 
             GUIHelper.printDivider()
@@ -553,7 +576,7 @@ class CreateCategoryOption: CommandLineOption {
             print("\u{2705}Category created Successfully")
         } catch let catError as CategoryValidationError {
             Color.changeColor(Color.red)
-            print("\u{274C} Category not created: \(catError)")
+            print("\u{274C} Category not created: \(catError.rawValue)")
         } catch {
             print("Unknown error: \(error)")
         }
@@ -563,7 +586,7 @@ class CreateCategoryOption: CommandLineOption {
 }
 
 
-// ....................... TASKS OPTIONS
+// ....................... Tasks Options .......................
 
 class AddCategoryToTaskOption: CommandLineOption {
     var key: String {"c"}
@@ -582,6 +605,82 @@ class AddCategoryToTaskOption: CommandLineOption {
                 print("Category successfully added to task")
             }
         }
+    }
+
+    init(task: Task) {
+        self.task = task
+    }
+}
+
+class DeleteTaskOption: CommandLineOption {
+    var key: String {"-"}
+    var title: String {"Remove task"}
+    var task: Task
+
+    func run() {
+        task.removeTask()
+        Color.changeColor(Color.green)
+        print("\u{2705}Task '\(task.id). \(task.title)' deleted Successfully")
+        GUIHelper.printDivider()
+    }
+
+    init(task: Task) {
+        self.task = task
+    }
+}
+
+class UpdateTaskOption: CommandLineOption {
+    var key: String {"u"}
+    var title: String {"Update task"}
+    var task: Task
+
+    private func success() {
+        Color.changeColor(Color.green)
+        print("\u{2705}Task '\(task.id). \(task.title)' updated Successfully")
+        GUIHelper.printDivider()
+
+    }
+
+    func run() {
+        let what = GUIHelper.drawSelectBox(label: "Please enter what value to edit", options: [
+            "title",
+            "content",
+            "priority"
+        ], values: [
+            "title",
+            "content",
+            "priority"
+        ], current: nil)
+
+        switch(what) {
+            case "priority":
+                let value = GUIHelper.drawPrioritySelectBox(label: "Please enter priority")
+                if value != nil {
+                    task.priority = value!
+                    return self.success()
+                }
+            case "title":
+                let value = readLine()
+                if value != nil {
+                    task.title = value!
+                    return self.success()
+                }
+            case "content":
+                let value = readLine()
+                if value != nil {
+                    task.content = value!
+                    return self.success()
+                }
+            default:
+                Color.changeColor(Color.red)
+                print("\u{274C}Wrong choice! action skipped")
+                Color.resetColor()
+                return
+        }
+
+        Color.changeColor(Color.red)
+        print("\u{274C}Wrong choice! action skipped")
+        Color.resetColor()
     }
 
     init(task: Task) {
@@ -612,10 +711,10 @@ let cat1 = try Category(name: "cat 1")
 let cat2 = try Category(name: "cat 2")
 _ = try Category(name: "cat 3")
 
-let task1 = Task(creationDate: 1, title: "d", content: "my task d", priority: Priority.high)
-let task2 = Task(creationDate: 2, title: "c", content: "my task c", priority: Priority.low)
-let task3 = Task(creationDate: 3, title: "b", content: "my task b", priority: Priority.medium)
-_ = Task(creationDate: 4, title: "a", content: "my task a", priority: Priority.high)
+let task1 = Task(title: "d", content: "my task d", priority: Priority.high)
+let task2 = Task(title: "c", content: "my task c", priority: Priority.low)
+let task3 = Task(title: "b", content: "my task b", priority: Priority.medium)
+_ = Task(title: "a", content: "my task a", priority: Priority.high)
 
 task1.categories.append(cat1)
 task2.categories.append(cat1)
