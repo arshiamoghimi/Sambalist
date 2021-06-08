@@ -9,6 +9,7 @@ enum Priority: Int {
 
 class TaskBoard {
     static var tasks: [Task] = []
+    static var categories: [Category] = []
 
     private init() {}
 
@@ -28,6 +29,34 @@ class TaskBoard {
             tasks.remove(at: taskIndex)
         }
     }
+
+    static func addCategory(category: Category) {
+        categories.append(category)
+    }
+
+    static func findCategoryByName(name: String) -> Category? {
+        let optionalIndex = categories.firstIndex{ $0.name == name }
+        if let categoryIndex = optionalIndex {
+            return categories[categoryIndex]
+        }
+        return nil
+    }
+
+    static func removeCategory(name: String) -> Bool {
+        let optionalIndex = categories.firstIndex{ $0.name == name }
+        if let categoryIndex = optionalIndex {
+            categories.remove(at: categoryIndex)
+            removeCategoryFromTasks(name: name)
+            return true
+        }
+        return false
+    }
+
+    private static func removeCategoryFromTasks(name: String) {
+        for task in tasks {
+            task.categories = task.categories.filter{$0.name != name}
+        }
+    }
 }
 
 class Task {
@@ -38,6 +67,7 @@ class Task {
     var content: String
     var priority: Priority
     var completed: Bool = false 
+    public var categories: [Category] = []
 
     func editTitle(newTitle: String) {
         self.title = newTitle
@@ -68,6 +98,35 @@ class Task {
         self.priority = priority
         TaskBoard.addTask(task: self)
     }
+}
+
+class Category: Equatable {
+    private static var autoIncreamentId: Int = 0
+    var id: Int
+    var name: String
+    init(name: String) throws {
+        for category in TaskBoard.categories {
+            if category.name == name {
+                throw CategoryValidationError.uniqueName
+            }
+        }
+        id = Category.autoIncreamentId
+        Category.autoIncreamentId += 1
+        self.name = name
+
+        TaskBoard.addCategory(category: self)
+    }
+
+    static func == (lhs: Category, rhs: Category) -> Bool {
+        return lhs.id == rhs.id
+    }
+}
+
+
+// ==================================== Errors =============================================
+
+enum CategoryValidationError: Error {
+    case uniqueName
 }
 
 // ====================================  CLI HELPER  =======================================
@@ -118,6 +177,33 @@ class GUIHelper {
         Color.resetColor()
         return false
     }
+
+    static func drawSelectBox<T: Equatable>(label: String, options: [T], values: [String], current: T?) -> T? {
+        printDivider()
+        print(label)
+        if values.isEmpty {
+            print("   No option found!")
+            return nil
+        }
+        for i in 0...values.count-1 {
+            let currentString: String
+            if options[i] == current {
+                currentString = " <="
+            } else {
+                currentString = ""
+            }
+            print("\(i) => \(values[i]) \(currentString)")
+        }
+        let input = readLine()
+        if let inputText = input {
+            for i in 0...values.count-1 {
+                if inputText == "\(i)" {
+                    return options[i]
+                }
+            }
+        }
+        return nil
+    }
     
     static func printDivider() {
         print("--------------------")
@@ -126,14 +212,65 @@ class GUIHelper {
 
 class TasksGUI {
     static func printTasksList(tasksList: [Task]) {
-        print("Tasks List:")
+        GUIHelper.printDivider()
+        print(" === Tasks List ===")
         Color.changeColor(Color.blue)
-        for (index, task) in tasksList.enumerated() {
-            print(String(index + 1) + ". " + task.title + ": " + task.content)
+        if tasksList.isEmpty {
+            print("No tasks found with specified filter :( ")
+        }
+        for task in tasksList {
+            print("\(task.id). \(task.title): \(task.content)")
         }
         Color.resetColor()
 
         GUIHelper.printDivider()
+    }
+}
+
+class CategoriesManagementGUI {
+
+    func menu() {
+        let options: [CommandLineOption] = [
+            CreateCategoryOption(),
+            CategoryListOption(),
+            DeleteCategoryOption(),
+            BackOption(),
+        ]
+
+        var finished = true
+        repeat {
+            GUIHelper.printDivider()
+            finished = GUIHelper.drawMenu(name: "Category Management", options: options)
+        } while finished == false
+    }
+
+    func list() {
+        Color.resetColor()
+        GUIHelper.printDivider()
+        print("== Categories:")
+        if TaskBoard.categories.isEmpty {
+            print("No category found :(")
+        } else {
+            for category in TaskBoard.categories {
+                print("\(category.id): \(category.name)")
+            }
+        }
+        print()
+        print()
+
+    }
+}
+
+class TaskManagementGUI {
+    static func show(task: Task) {
+        GUIHelper.printDivider()
+        print(task.title)
+        _ = GUIHelper.drawMenu(name: "Please select one of this actions", options: [
+            // DeleteTask(task), // TODO
+            // UpdateTask(task), // TODO
+            AddCategoryToTaskOption(task: task),
+            BackOption(),
+        ])
     }
 }
 
@@ -143,6 +280,28 @@ protocol CommandLineOption {
     var key: String { get }
     var title: String { get }
     func run()
+}
+
+class AnonymousOption: CommandLineOption {
+    var keyFunc: () -> String
+    var titleFunc: () -> String
+    var runFunc: () -> Void 
+    var key: String {
+        return keyFunc()
+    }
+    var title: String {
+        return titleFunc()
+    }
+
+    func run() {
+        return runFunc()
+    }
+
+    init(key: @escaping () -> String, title: @escaping () -> String, run: @escaping () -> Void) {
+        self.keyFunc = key
+        self.titleFunc = title
+        self.runFunc = run
+    }
 }
 
 
@@ -170,29 +329,18 @@ class CreateTaskOption: CommandLineOption {
     }
 }
 
-class ShowTaskBoardOption: CommandLineOption {
+
+class CategoryManagementOption: CommandLineOption {
     var key: String {
-        return "b"
+        return "c"
     }
+
     var title: String {
-        return "Go to tasks board"
+        return "Add / Show Categories"
     }
 
     func run() {
-        let options: [CommandLineOption] = [
-            TaskBoardTasks(key: "1", tasks: TaskBoard.tasks, column: "default", order: false, by: nil),
-            TaskBoardTasks(key: "2", tasks: TaskBoard.tasks, column: "title", order: false, by: {$0.title < $1.title}),
-            TaskBoardTasks(key: "3", tasks: TaskBoard.tasks, column: "creation date", order: false,
-                           by: {$0.creationDate < $1.creationDate}),
-            TaskBoardTasks(key: "4", tasks: TaskBoard.tasks, column: "priority", order: false,
-                           by: {$0.priority.rawValue < $1.priority.rawValue}),
-            TaskBoardBackOption(),
-        ]
-        var finished = true
-        repeat {
-            GUIHelper.printDivider()
-            finished = GUIHelper.drawMenu(name: "Task Borad", options: options)
-        } while finished == false
+        CategoriesManagementGUI().menu()
     }
 }
 
@@ -212,37 +360,113 @@ class QuitOption: CommandLineOption {
 
 // .................... TaskBoard Options .......................
 
-class TaskBoardTasks: CommandLineOption {
-    var key: String
-    var tasks: [Task]
-    var by: ((Task, Task) -> Bool)?
-    var order: Bool
-    var column: String
+enum TaskBoardColumn {
+    case CreationDate, Name, Priority
+}
+
+class TaskBoardTasksOption: CommandLineOption {
+    var key: String {
+        return "l"
+    }
+    var order: Bool = true
+    var column: TaskBoardColumn = TaskBoardColumn.CreationDate
+    var backPressed: Bool = false
+    var filter: Category? = nil
 
     var title: String {
-        return "Show tasks (by: \(column))"
+        return "Show tasks"
     }
 
-    func run() {
-        var tasksList = tasks
-        if let notOptionalBy = by {
-            tasksList = tasksList.sorted(by: notOptionalBy)
+    func printTasks() {
+        var tasksList = TaskBoard.tasks
+        switch(column) {
+            case TaskBoardColumn.CreationDate:
+                break
+            case TaskBoardColumn.Name:
+                tasksList = tasksList.sorted{$0.title < $1.title}
+            case TaskBoardColumn.Priority:
+                tasksList = tasksList.sorted{$0.priority.rawValue < $1.priority.rawValue}
         }
-        // TODO: order
+
+        // TODO:
+        if !order {
+            tasksList = tasksList.reversed()
+        }
+
+        if let category = filter {
+            tasksList = tasksList.filter{
+                $0.categories.contains{ $0.id == category.id }
+            }
+        }
+
 
         TasksGUI.printTasksList(tasksList: tasksList)
     }
 
-    init(key: String, tasks: [Task], column: String, order: Bool, by: ((Task, Task) -> Bool)?) {
-        self.key = key
-        self.tasks = tasks
-        self.by = by
-        self.column = column
-        self.order = order
+    func run() {
+        backPressed = false
+        // TODO: refactor it :)
+        let backOption = AnonymousOption(key: {return "b"}, title: { return "Back to main menu"}) {
+            self.backPressed = true
+        }
+
+        let changeSort = AnonymousOption(key: {"s"}, title: {"Sort"}) {
+            let result = GUIHelper.drawSelectBox(label:"Enter sort key", options: [
+                TaskBoardColumn.CreationDate,
+                TaskBoardColumn.Name,
+                TaskBoardColumn.Priority
+            ], values: [
+                "Creation Date",
+                "Task Name",
+                "Priority"
+            ], current: self.column)
+
+            if let nextColumn = result {
+                self.column = nextColumn
+            } else {
+                Color.changeColor(Color.red)
+                print("\u{274C}Wrong choice!")
+                Color.resetColor()
+            }
+        }
+
+        let filterOption = AnonymousOption(key: {"f"}, title: {"Filter by category"}) {
+            let result = GUIHelper.drawSelectBox(label:"Please select one of categories or enter something else for no filtering", options: TaskBoard.categories,
+                 values: TaskBoard.categories.map{$0.name}, current: self.filter)
+            self.filter = result
+        }
+
+        let manageTask = AnonymousOption(key: {"m"}, title: {"Manage a task"}) {
+            print("Please enter task ID")
+            let input = readLine()
+            if let taskId = input {
+                for task in TaskBoard.tasks {
+                    if taskId == "\(task.id)" {
+                        TaskManagementGUI.show(task: task)
+                        return
+                    }
+                }
+            }
+
+            Color.changeColor(Color.red)
+            print("\u{274C}No task with specified ID found!")
+            Color.resetColor()
+        }
+
+        while !self.backPressed {
+            printTasks()
+            _ = GUIHelper.drawMenu(name: "Actions", options: [
+                backOption,
+                changeSort,
+                filterOption,
+                manageTask,
+            ])
+        }
     }
+
 }
 
-class TaskBoardBackOption: CommandLineOption {
+class BackOption: CommandLineOption {
     var key: String {
         return "b"
     }
@@ -256,6 +480,102 @@ class TaskBoardBackOption: CommandLineOption {
     }
 }
 
+// .................... Category Options .......................
+
+class CategoryListOption: CommandLineOption {
+    var key: String {
+        return "l"
+    }
+    var title: String {
+        return "Show list of categories"
+    }
+
+    func run() {
+        CategoriesManagementGUI().list()
+    }
+}
+
+class DeleteCategoryOption: CommandLineOption {
+    var key: String {
+        return "-"
+    }
+    var title: String {
+        return "Delete category"
+    }
+
+    func run() {
+        GUIHelper.printDivider()
+        print("Enter Title of category to delete in next line:")
+        let title = readLine()
+        if let categoryName: String = title {
+            let deleted = TaskBoard.removeCategory(name: categoryName)
+            if deleted {
+                Color.changeColor(Color.green)
+                print("\u{2705}Category created Successfully")
+            } else {
+                Color.changeColor(Color.red)
+                print("\u{274C} Category not created")
+            }
+
+            GUIHelper.printDivider()
+        }
+    }
+}
+
+class CreateCategoryOption: CommandLineOption {
+    var key: String {
+        return "+"
+    }
+    var title: String {
+        return "Create new category"
+    }
+
+    func run() {
+        GUIHelper.printDivider()
+        print("Enter Title of your category in next line:")
+        do {
+            let title = readLine()
+            let _ = try Category(name: title!)
+
+            Color.changeColor(Color.green)
+            print("\u{2705}Category created Successfully")
+        } catch let catError as CategoryValidationError {
+            Color.changeColor(Color.red)
+            print("\u{274C} Category not created: \(catError)")
+        } catch {
+            print("Unknown error: \(error)")
+        }
+
+        GUIHelper.printDivider()
+    }
+}
+
+
+// ....................... TASKS OPTIONS
+
+class AddCategoryToTaskOption: CommandLineOption {
+    var key: String {"c"}
+    var title: String {"Add/Remove Category"}
+    var task: Task
+
+    func run() {
+        let result = GUIHelper.drawSelectBox(label:"Please select one of categories or enter something else for cancel this action \n If it is in task, removed and if not, added",
+             options: TaskBoard.categories, values: TaskBoard.categories.map{$0.name}, current: nil)
+        if let category = result {
+            if (task.categories.contains{$0 == category}) {
+                task.categories = task.categories.filter{$0 != category}
+                print("Category successfully removed from task")
+            } else {
+                task.categories.append(category)
+                print("Category successfully added to task")
+            }
+        }
+    }
+
+    init(task: Task) {
+        self.task = task
+    }
+}
 
 // ====================================  MAIN  =======================================
 
@@ -263,7 +583,8 @@ class MainGUI {
     static func run() {
         let options: [CommandLineOption] = [
             CreateTaskOption(),
-            ShowTaskBoardOption(),
+            TaskBoardTasksOption(),
+            CategoryManagementOption(),
             QuitOption()
         ]
 
