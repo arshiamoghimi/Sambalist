@@ -126,8 +126,8 @@ class Category: Equatable {
 
 // ==================================== Errors =============================================
 
-enum CategoryValidationError: Error {
-    case uniqueName
+enum CategoryValidationError: String, Error {
+    case uniqueName = "Category name must be unique"
 }
 
 // ====================================  CLI HELPER  =======================================
@@ -554,7 +554,7 @@ class CreateCategoryOption: CommandLineOption {
             print("\u{2705}Category created Successfully")
         } catch let catError as CategoryValidationError {
             Color.changeColor(Color.red)
-            print("\u{274C} Category not created: \(catError)")
+            print("\u{274C} Category not created: \(catError.rawValue)")
         } catch {
             print("Unknown error: \(error)")
         }
@@ -564,7 +564,7 @@ class CreateCategoryOption: CommandLineOption {
 }
 
 
-// ....................... TASKS OPTIONS
+// ....................... Tasks Options .......................
 
 class AddCategoryToTaskOption: CommandLineOption {
     var key: String {"c"}
