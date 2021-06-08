@@ -360,8 +360,8 @@ class QuitOption: CommandLineOption {
 
 // .................... TaskBoard Options .......................
 
-enum TaskBoardColumn {
-    case CreationDate, Name, Priority
+enum TaskBoardColumn: String, CaseIterable {
+    case CreationDate = "creation date", Name = "name", Priority = "priority"
 }
 
 class TaskBoardTasksOption: CommandLineOption {
@@ -411,18 +411,30 @@ class TaskBoardTasksOption: CommandLineOption {
         }
 
         let changeSort = AnonymousOption(key: {"s"}, title: {"Sort"}) {
-            let result = GUIHelper.drawSelectBox(label:"Enter sort key", options: [
-                TaskBoardColumn.CreationDate,
-                TaskBoardColumn.Name,
-                TaskBoardColumn.Priority
-            ], values: [
-                "Creation Date",
-                "Task Name",
-                "Priority"
-            ], current: self.column)
+            var sortOptions: [TaskBoardColumn] = []
+            var sortValues: [String] = []
+            for column in TaskBoardColumn.allCases {
+                sortOptions.append(column)
+                sortValues.append(column.rawValue)
+            }
+            let orderString: String
+            if self.order {
+                orderString = "ASC"
+            } else {
+                orderString = "DESC"
+            }
+            let result = GUIHelper.drawSelectBox(label:"Enter sort key \n Current order: \(orderString) \n" +
+                                                 "If you select currenly selected key, the order reversed",
+                                                 options: sortOptions, values: sortValues,
+                                                 current: self.column)
 
             if let nextColumn = result {
-                self.column = nextColumn
+                if self.column != nextColumn {
+                    self.order = true
+                 } else {
+                     self.order = !self.order
+                 }
+                 self.column = nextColumn
             } else {
                 Color.changeColor(Color.red)
                 print("\u{274C}Wrong choice!")
@@ -594,9 +606,20 @@ class MainGUI {
     }
 }
 
+// SEED DB
 
-let _ = Task(creationDate: 1, title: "d", content: "adafgsd", priority: Priority.high)
-let _ = Task(creationDate: 2, title: "c", content: "adafgsd", priority: Priority.low)
-let _ = Task(creationDate: 3, title: "b", content: "adafgsd", priority: Priority.medium)
-let _ = Task(creationDate: 4, title: "a", content: "adafgsd", priority: Priority.high)
+let cat1 = try Category(name: "cat 1")
+let cat2 = try Category(name: "cat 2")
+_ = try Category(name: "cat 3")
+
+let task1 = Task(creationDate: 1, title: "d", content: "my task d", priority: Priority.high)
+let task2 = Task(creationDate: 2, title: "c", content: "my task c", priority: Priority.low)
+let task3 = Task(creationDate: 3, title: "b", content: "my task b", priority: Priority.medium)
+_ = Task(creationDate: 4, title: "a", content: "my task a", priority: Priority.high)
+
+task1.categories.append(cat1)
+task2.categories.append(cat1)
+task3.categories.append(cat2)
+
+
 MainGUI.run()
