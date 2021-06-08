@@ -1,5 +1,12 @@
 import Foundation
 
+// ================================= THIRD PARTIES =====================================
+
+// https://stackoverflow.com/a/7885923
+func getCurrentMillis() -> Int64{
+    return  Int64(NSDate().timeIntervalSince1970 * 1000)
+}
+
 
 // ====================================  MODELS  =======================================
 
@@ -62,7 +69,7 @@ class TaskBoard {
 class Task {
     private static var autoIncreamentId: Int = 0
     var id: Int
-    var creationDate: Int
+    var creationDate: Int64
     var title: String
     var content: String
     var priority: Priority
@@ -89,10 +96,10 @@ class Task {
         TaskBoard.removeTask(task: self)
     }
 
-    init(creationDate: Int, title: String, content: String, priority: Priority) {
+    init(title: String, content: String, priority: Priority) {
         self.id = Task.autoIncreamentId
         Task.autoIncreamentId += 1
-        self.creationDate = creationDate
+        self.creationDate = getCurrentMillis()
         self.title = title
         self.content = content
         self.priority = priority
@@ -322,7 +329,7 @@ class CreateTaskOption: CommandLineOption {
         let content = readLine()
         let priority = readLine()
         // TODO: Validation for priority
-        let _ = Task(creationDate: 1, title: title!, content: content!, priority: Priority(rawValue: Int(priority!)!)!)
+        let _ = Task(title: title!, content: content!, priority: Priority(rawValue: Int(priority!)!)!)
         Color.changeColor(Color.green)
         print("\u{2705}Task created Successfully")
         GUIHelper.printDivider()
@@ -360,8 +367,8 @@ class QuitOption: CommandLineOption {
 
 // .................... TaskBoard Options .......................
 
-enum TaskBoardColumn {
-    case CreationDate, Name, Priority
+enum TaskBoardColumn: String, CaseIterable {
+    case CreationDate = "creation date", Name = "name", Priority = "priority"
 }
 
 class TaskBoardTasksOption: CommandLineOption {
@@ -411,18 +418,30 @@ class TaskBoardTasksOption: CommandLineOption {
         }
 
         let changeSort = AnonymousOption(key: {"s"}, title: {"Sort"}) {
-            let result = GUIHelper.drawSelectBox(label:"Enter sort key", options: [
-                TaskBoardColumn.CreationDate,
-                TaskBoardColumn.Name,
-                TaskBoardColumn.Priority
-            ], values: [
-                "Creation Date",
-                "Task Name",
-                "Priority"
-            ], current: self.column)
+            var sortOptions: [TaskBoardColumn] = []
+            var sortValues: [String] = []
+            for column in TaskBoardColumn.allCases {
+                sortOptions.append(column)
+                sortValues.append(column.rawValue)
+            }
+            let orderString: String
+            if self.order {
+                orderString = "ASC"
+            } else {
+                orderString = "DESC"
+            }
+            let result = GUIHelper.drawSelectBox(label:"Enter sort key \n Current order: \(orderString) \n" +
+                                                 "If you select currenly selected key, the order reversed",
+                                                 options: sortOptions, values: sortValues,
+                                                 current: self.column)
 
             if let nextColumn = result {
-                self.column = nextColumn
+                if self.column != nextColumn {
+                    self.order = true
+                 } else {
+                     self.order = !self.order
+                 }
+                 self.column = nextColumn
             } else {
                 Color.changeColor(Color.red)
                 print("\u{274C}Wrong choice!")
@@ -594,9 +613,20 @@ class MainGUI {
     }
 }
 
+// SEED DB
 
-let _ = Task(creationDate: 1, title: "d", content: "adafgsd", priority: Priority.high)
-let _ = Task(creationDate: 2, title: "c", content: "adafgsd", priority: Priority.low)
-let _ = Task(creationDate: 3, title: "b", content: "adafgsd", priority: Priority.medium)
-let _ = Task(creationDate: 4, title: "a", content: "adafgsd", priority: Priority.high)
+let cat1 = try Category(name: "cat 1")
+let cat2 = try Category(name: "cat 2")
+_ = try Category(name: "cat 3")
+
+let task1 = Task(title: "d", content: "my task d", priority: Priority.high)
+let task2 = Task(title: "c", content: "my task c", priority: Priority.low)
+let task3 = Task(title: "b", content: "my task b", priority: Priority.medium)
+_ = Task(title: "a", content: "my task a", priority: Priority.high)
+
+task1.categories.append(cat1)
+task2.categories.append(cat1)
+task3.categories.append(cat2)
+
+
 MainGUI.run()
