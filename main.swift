@@ -25,14 +25,8 @@ class TaskBoard {
     }
 
     static func removeTask(task: Task) {
-        var taskIndex = -1
-        for (index, element) in tasks.enumerated() {
-            if task.id == element.id {
-                taskIndex = index
-                break
-            } 
-        }
-        if taskIndex != -1 {
+        let optionalIndex = tasks.firstIndex{ $0.id == task.id }
+        if let taskIndex = optionalIndex {
             tasks.remove(at: taskIndex)
         }
     }
@@ -271,9 +265,9 @@ class CategoriesManagementGUI {
 class TaskManagementGUI {
     static func show(task: Task) {
         GUIHelper.printDivider()
-        print(task.title)
+        print("\(task.id). \(task.title): \(task.content)")
         _ = GUIHelper.drawMenu(name: "Please select one of this actions", options: [
-            // DeleteTask(task), // TODO
+            DeleteTaskOption(task: task),
             // UpdateTask(task), // TODO
             AddCategoryToTaskOption(task: task),
             BackOption(),
@@ -530,10 +524,10 @@ class DeleteCategoryOption: CommandLineOption {
             let deleted = TaskBoard.removeCategory(name: categoryName)
             if deleted {
                 Color.changeColor(Color.green)
-                print("\u{2705}Category created Successfully")
+                print("\u{2705}Category deleted Successfully")
             } else {
                 Color.changeColor(Color.red)
-                print("\u{274C} Category not created")
+                print("\u{274C} No category found")
             }
 
             GUIHelper.printDivider()
@@ -589,6 +583,23 @@ class AddCategoryToTaskOption: CommandLineOption {
                 print("Category successfully added to task")
             }
         }
+    }
+
+    init(task: Task) {
+        self.task = task
+    }
+}
+
+class DeleteTaskOption: CommandLineOption {
+    var key: String {"-"}
+    var title: String {"Remove task"}
+    var task: Task
+
+    func run() {
+        task.removeTask()
+        Color.changeColor(Color.green)
+        print("\u{2705}Task '\(task.id). \(task.title)' deleted Successfully")
+        GUIHelper.printDivider()
     }
 
     init(task: Task) {
