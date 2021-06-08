@@ -411,7 +411,6 @@ class TaskBoardTasksOption: CommandLineOption {
                 tasksList = tasksList.sorted{$0.priority.rawValue < $1.priority.rawValue}
         }
 
-        // TODO:
         if !order {
             tasksList = tasksList.reversed()
         }
