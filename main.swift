@@ -446,7 +446,7 @@ class TaskBoardTasksOption: CommandLineOption {
                 orderString = "DESC"
             }
             let result = GUIHelper.drawSelectBox(label:"Enter sort key \n Current order: \(orderString) \n" +
-                                                 "If you select currenly selected key, the order reversed",
+                                                 "If you select currenly selected key, the order will be reversed",
                                                  options: sortOptions, values: sortValues,
                                                  current: self.column)
 
@@ -593,7 +593,7 @@ class AddCategoryToTaskOption: CommandLineOption {
     var task: Task
 
     func run() {
-        let result = GUIHelper.drawSelectBox(label:"Please select one of categories or enter something else for cancel this action \n If it is in task, removed and if not, added",
+        let result = GUIHelper.drawSelectBox(label:"Please select one of the categories or enter something else to cancel this action \n If the task is in the category it will be removed from the category, if not, it will be added.",
              options: TaskBoard.categories, values: TaskBoard.categories.map{$0.name}, current: nil)
         if let category = result {
             if (task.categories.contains{$0 == category}) {
