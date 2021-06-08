@@ -1,6 +1,11 @@
 # Sambalist
 Simple Swift Todo List
 
+## Members
+Arshia Moghimi
+Alireza Tofighi
+Hamed Alimohammadzadeh
+
 
 ## Development
 
